@@ -1,0 +1,93 @@
+class FordFulkerson {
+
+    requires \array(p, V);
+    requires (\forall* int i1 ; 0 <= i1 && i1 < V; Perm(p[i1], read));
+    pure boolean valid_graph_vertices(int[V] p, int V) = (\forall int i; 0 <= i && i < p.length; 0 <= p[i] && p[i] < V);
+    
+    pure boolean valid_graph_vertices(seq<int> p, int V) = (\forall int i; 0 <= i && i < |p|; 0 <= p[i] && p[i] < V);
+
+    pure boolean FlowNetwork(int[V][V] G, int V, int s, int t) = V > 0 && s == 0 && s != t;
+
+    pure boolean ResidualNetwork(int[V][V] G, int V) = false;
+
+    pure boolean ExPath(int[V][V] G, int V, int s, int t) = false;
+
+    pure boolean lemma_flow_conservation(int[V][V] G, int V, int s, int t) = false;
+
+    pure boolean lemma_capacity_constrain(int[V][V] G, int V, int s, int t) = false;
+
+    pure boolean lemma_skew_symetry(int[V][V] G, int V, int s, int t) = false;
+
+    pure boolean lemma_max_flow_min_cut(int[V][V] G, int V, int s, int t) = false;
+
+    pure int flow(int[V][V] G, int V, int s, int t) = 0;
+
+    pure int value(int[V][V] G, int V, int s, int t) = 0;
+
+    context_everywhere \matrix(G, V, V);
+    context_everywhere 0 <= s && s < V && 0 <= t && t < V;
+    context_everywhere (\forall* int i1 ; 0 <= i1 && i1 < V ;
+                 (\forall* int j1 ; 0 <= j1 && j1 < V ;
+                   Perm(G[i1][j1], write)));
+    int max_flow(int[V][V] G, int s, int t, int V) {
+        int[][] Gf = new int[V][V];
+        copy(G, Gf, V);
+
+        int[] p = new int[V];
+
+        initializeWithZeros(p, V);
+
+        // return executeEdmondKarp(Gf, s, t, p, V);
+    }
+
+
+
+    context_everywhere \array(p, V);
+    context (\forall* int k; 0 <= k && k < V ; Perm(p[k], write));
+    ensures valid_graph_vertices(p, V);
+    ensures (\forall* int k; 0 <= k && k < V ; p[k] == 0);
+    void initializeWithZeros(int[V] p, int V){
+        par(int i=0..V)
+            context  Perm(p[i],write);
+            ensures  p[i] == 0;
+        {
+            p[i] = 0;
+        }
+    }
+
+    context_everywhere \matrix(source, V, V);
+    context  (\forall* int i1; 0 <= i1 && i1 < V;
+                 (\forall* int j1; 0 <= j1 && j1 < V;
+                   Perm(source[i1][j1],write)));
+    context_everywhere \matrix(target, V, V);
+    context  (\forall* int i1; 0 <= i1 && i1 < V;
+                 (\forall* int j1 ; 0 <= j1 && j1 < V;
+                   Perm(target[i1][j1],write)));
+    ensures  (\forall* int i1; 0 <= i1 && i1 < V;
+                 (\forall* int j1 ; 0 <= j1 && j1 < V;
+                   target[i1][j1] == source[i1][j1]));
+    void copy(int[V][V] source, int[V][V] target, int V) {
+        par(int i=0..V,int j=0..V)
+            context  Perm(target[i][j],write);
+            context  Perm(source[i][j],write);
+        {
+            target[i][j] = source[i][j];
+        }
+    }
+
+
+    context_everywhere \array(visited, V);
+    context_everywhere 0 <= s && s < V;
+    context (\forall* int k; 0 <= k && k < V; Perm(visited[k], write));
+    ensures (\forall* int k; 0 <= k && k < V && k != s; visited[k] ==  false);
+    ensures visited[s] == true;
+    void initializeVisited(boolean[] visited, int s, int  V){
+        par(int i=0..V)
+            context  Perm(visited[i],write);
+            ensures  visited[i] == false;
+        {
+            visited[i] = false;
+        }
+        visited[s] = true;
+    }
+}

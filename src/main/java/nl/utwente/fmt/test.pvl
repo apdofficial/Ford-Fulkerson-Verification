@@ -1,0 +1,19 @@
+class Test{
+
+    context_everywhere \matrix(source, V, V);
+    context  (\forall* int i1; 0 <= i1 && i1 < V;
+                 (\forall* int j1; 0 <= j1 && j1 < V;
+                   Perm(source[i1][j1],read)));
+    context_everywhere \matrix(target, V, V);
+    context  (\forall* int i1; 0 <= i1 && i1 < V;
+                 (\forall* int j1 ; 0 <= j1 && j1 < V;
+                   Perm(target[i1][j1],write)));
+    void copy(int[V][V] source, int[V][V] target, int V) {
+        par(int i=0..V,int j=0..V)
+            context  Perm(target[i][j],write);
+            context  Perm(source[i][j],read);
+        {
+            target[i][j] = source[i][j];
+        }
+    }
+}
