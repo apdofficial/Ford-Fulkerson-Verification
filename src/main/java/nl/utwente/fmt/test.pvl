@@ -1,19 +1,267 @@
-class Test{
+class FordFulkerson {
+
+    requires \array(p, V);
+    requires (\forall* int i1 ; 0 <= i1 && i1 < V; Perm(p[i1], read));
+    pure boolean valid_graph_vertices(int[V] p, int V) = 
+        (\forall int i; 0 <= i && i < p.length; 0 <= p[i] && p[i] < V); // only points to vertices that exist
+    
+    pure boolean valid_graph_vertices(seq<int> p, int V) = 
+        (\forall int i; 0 <= i && i < |p|; 0 <= p[i] && p[i] < V); // only points to vertices that exist
+
+    requires n <= |p|;
+    ensures n < 0 ==> |initializeSeqWithZeros(p, n)| == 0;
+    ensures 0 <= n ==> |initializeSeqWithZeros(p, n)| == n;
+    ensures (\forall int i; 0 <= i && i < n; p[i] == 0);
+    pure seq<int> initializeSeqWithZeros(seq<int> p, int n) = 
+        0 < n ? seq<int> { 0 } + initializeSeqWithZeros(p, n - 1) : seq<int> { };
+
+    pure boolean SquareIntMatrix(seq<seq<int>> G, int V) = 
+        |G| == V && 
+        (\forall seq<int> e; e in G; |e| == V);
+
+    requires 0 <= n && n <= |G|;
+    requires 0 <= v && v <= |G|;
+    pure int SumIncomingFlow(seq<seq<int>> G, int n, int v) = 
+        n > 0 ? G[n][v] + SumIncomingFlow(G, n - 1, v) : 0;
+
+    requires 0 <= n && n <= |G|;
+    requires 0 <= v && v <= |G|;
+    pure int SumOutgoingFlow(seq<seq<int>> G, int n, int v) = 
+        n > 0 ? G[v][n] + SumOutgoingFlow(G, n - 1, v) : 0;
+
+    requires V == |G|;
+    pure boolean FlowConservation(seq<seq<int>> G, int V, int s, int t) = 
+        SumIncomingFlow(G, V, s) <= SumOutgoingFlow(G, V, s) && // source is the only vertex allowed to "produce" the flow
+        SumIncomingFlow(G, V, t) >= SumOutgoingFlow(G, V, t) && // sink is the only vertex allowed to "consume" the flow
+        (\forall int v ; 0 <= v && v < V && v != s && v != t; SumIncomingFlow(G, V, v) == SumOutgoingFlow(G, V, v)); //for vertices other than source and sink
+
+    requires V == |G|;
+    requires V == |Gf|;
+    pure boolean CapacityConstraint(seq<seq<int>> G, seq<seq<int>> Gf, int V) = 
+        (\forall int i ; 0 <= i && i < V ;
+                 (\forall int j ; 0 <= j && j < V ; Gf[i][j] <= G[i][j])); // flow can not exceed the capacity
+
+    requires V == |G|;
+    pure boolean NonNegativeCapacities(seq<seq<int>> G, int V) = 
+        (\forall int i ; 0 <= i && i < V ;
+                 (\forall int j ; 0 <= j && j < V ; G[i][j] > 0));
+
+    requires V == |G|;
+    pure boolean SkewSymetry(seq<seq<int>> G, int V) = 
+        (\forall int i ; 0 <= i && i < V ;
+                 (\forall int j ; 0 <= j && j < V ; G[i][j] == -G[j][i]));
+
+    requires V == |G|;
+    requires V == |Gf|;
+    requires NonNegativeCapacities(G, V);
+    pure boolean FlowNetwork(seq<seq<int>> G, seq<seq<int>> Gf, int V, int s, int t) = 
+        SquareIntMatrix(G, V) &&
+        SquareIntMatrix(Gf, V) &&
+        NonNegativeCapacities(G, V);
+
+    requires V == |G|;
+    requires V == |Gf|;
+    ensures FlowConservation(G, V, s, t);
+    ensures CapacityConstraint(G, Gf, V);
+    pure boolean Flow(seq<seq<int>> G, seq<seq<int>> Gf, int V, int s, int t) = 
+        FlowConservation(G, V, s, t) &&
+        CapacityConstraint(G, Gf, V) && 
+        SkewSymetry(Gf, V);
+
+    requires SquareIntMatrix(G, V);
+    pure boolean AugPath(seq<seq<int>> G, int V, int s, int t, seq<int> P) =
+        0 <= s && s < V && // valid vertex
+        0 <= t && t < V && // valid vertex
+        |P| > 1 ==> P[0] != P[|P|- 1] && // not a cycle
+        valid_graph_vertices(P, V) && // vertices exist
+        (\forall int j; 0 <= j && j < |P|; 0 <= P[j] && P[j] < V) &&
+        (\forall int j; 0 <= j && j < |P| - 1; G[P[j]][P[j + 1]] > 0); // path consisting of edges with capacities >1
+
+    requires SquareIntMatrix(G, V);
+    pure boolean ExAugPath(seq<seq<int>> G, int V, int s, int t) = 
+        (\exists seq<int>  P; AugPath(G, V, s, t, P); |P| <= V);
+
+
+    seq<seq<int>> Gf_seq;
+    seq<int> P_seq;
+
+    context Perm(Gf_seq, write);
+    context Perm(P_seq, write);
+    context |Gf_seq| == V;
+    context |P_seq| == V;
+    requires SquareIntMatrix(Gf_seq, V);
+    context \matrix(G, V, V);
+    context 0 <= s && s < V && 0 <= t && t < V;
+    context (\forall* int i1 ; 0 <= i1 && i1 < V ;
+                        (\forall* int j1 ; 0 <= j1 && j1 < V ; Perm(G[i1][j1], write)));
+    context (\forall int i1 ; 0 <= i1 && i1 < V ; |Gf_seq[i1]| == V);
+    context (\forall int i1 ; 0 <= i1 && i1 < V ;
+                 (\forall int j1 ; 0 <= j1 && j1 < V ; G[i1][j1] == Gf_seq[i1][j1]));
+    ensures ExAugPath(Gf_seq, V, s, t) == false;
+    int max_flow(int[V][V] G, int s, int t, int V) {
+        int[][] Gf = new int[V][V];
+        copy(G, Gf, V);
+
+        int[] P = new int[V];
+
+        initializeWithZeros(P, V);
+
+        return executeEdmondKarp(G, Gf, s, t, P, V);
+    }
+
+    
+    context_everywhere \matrix(Gf, V, V);
+    context_everywhere \matrix(G, V, V);
+    context_everywhere \array(P, V);
+    context_everywhere Perm(Gf_seq, write);
+    context_everywhere Perm(P_seq, write);
+    context_everywhere |Gf_seq| == V;
+    context_everywhere |P_seq| == V;
+    context_everywhere SquareIntMatrix(Gf_seq, V);
+    context_everywhere 0 <= s && s < V && 0 <= t && t < V;
+    context_everywhere (\forall* int i1 ; 0 <= i1 && i1 < V; 
+                        (\forall* int j1 ; 0 <= j1 && j1 < V; Perm(Gf[i1][j1], write)));
+    context_everywhere (\forall* int i1 ; 0 <= i1 && i1 < V; 
+                        (\forall* int j1 ; 0 <= j1 && j1 < V; Perm(G[i1][j1], read)));
+    context_everywhere (\forall* int i1 ; 0 <= i1 && i1 < V; Perm(P[i1], write));
+    context (\forall int i; 0 <= i && i < V; P_seq[i] == P[i]);
+    context_everywhere valid_graph_vertices(P, V);
+    ensures ExAugPath(Gf_seq, V, s, t) == false;
+    int executeEdmondKarp(int[][] G, int[][] Gf, int s, int t, int[] P, int V){
+        int maxFlow = 0;
+        int u = 0;
+
+
+        while (hasAugmentingPath(Gf, V, s, t, P)) 
+        {
+            // assume the result of BFS
+            assume AugPath(Gf_seq, V, s, t, P_seq); // P is a augmenting path in the residual network
+            assume ExAugPath(Gf_seq, V, s, t); // there exist a augmenting path in the residual network
+            assume (\forall int i; 0 <= i && i < V; P_seq[i] == P[i]); // match P_seq to P
+            assume (\forall int i1 ; 0 <= i1 && i1 < V ;
+                    (\forall int j1 ; 0 <= j1 && j1 < V ; Gf_seq[i1][j1] == Gf[i1][j1])); // match Gf_seq to Gf
+
+            int bottleneckPathFlow = 999999999;
+
+            loop_invariant 0 <= v && v < V;
+            for (int v = t; v != s; v = P[v]) 
+            {
+                u = P[v];
+                bottleneckPathFlow = (bottleneckPathFlow <= Gf[u][v]) ? bottleneckPathFlow : Gf[u][v];
+            }
+
+            loop_invariant 0 <= v && v < V;
+            for (int v = t; v != s; v = P[v]) {
+                u = P[v];
+                Gf[u][v] = Gf[u][v] - bottleneckPathFlow; // remove along the path
+                Gf[v][u] = Gf[v][u] + bottleneckPathFlow; // add against the path to balance the above substraction of the flow
+
+                Gf_seq[u][v -> Gf_seq[u][v] - bottleneckPathFlow]; // ghost
+                Gf_seq[v][u -> Gf_seq[v][u] + bottleneckPathFlow]; // ghost
+
+            }
+
+            maxFlow = maxFlow + bottleneckPathFlow;
+        }
+
+        // assume the result of BFS
+        assume AugPath(Gf_seq, V, s, t, P_seq) == false; // P is a augmenting path in the residual network
+        assume ExAugPath(Gf_seq, V, s, t) == false; // there exist a augmenting path in the residual network
+        assume (\forall int i; 0 <= i && i < V; P_seq[i] == P[i]); // match P_seq to P
+        assume (\forall int i1 ; 0 <= i1 && i1 < V ;
+                    (\forall int j1 ; 0 <= j1 && j1 < V ; Gf[i1][j1] == Gf_seq[i1][j1])); // match Gf_seq to Gf
+
+        return maxFlow;
+    }
+
+    context_everywhere \matrix(Gf, V, V);
+    context_everywhere \array(p, V);
+    context_everywhere 0 <= s && s < V && 0 <= t && t < V;
+    context_everywhere (\forall* int i1 ; 0 <= i1 && i1 < V; 
+                        (\forall* int j1 ; 0 <= j1 && j1 < V; 
+                            Perm(Gf[i1][j1], write)));
+    context_everywhere (\forall* int i1 ; 0 <= i1 && i1 < V; Perm(p[i1], write));
+    context_everywhere valid_graph_vertices(p, V);
+    boolean hasAugmentingPath(int[][] Gf, int V, int s, int t, int[] p) {
+        boolean[] visited = new boolean[V];
+        initializeVisited(visited, s, V);
+
+        seq<int> queue = seq<int> { s };
+
+        loop_invariant 0 <= s && s < V;
+        loop_invariant valid_graph_vertices(queue, V);
+        loop_invariant (\forall* int i1 ; 0 <= i1 && i1 < V; Perm(visited[i1], write));
+        while (!queue.isEmpty) {
+            int u = queue.head;
+            queue.removeAt(0);
+            int k = 0;
+
+            loop_invariant visited.length == V;
+            loop_invariant 0 <= u && u < V && 0 <= v && v <= V && 0 <= k && k < V;
+            loop_invariant valid_graph_vertices(queue, V);
+            loop_invariant (\forall* int i1 ; 0 <= i1 && i1 < V; Perm(visited[i1], write));
+            for (int v = 0; v < V; v++) {   
+                k = v;
+                if (!visited[v] && Gf[u][k] > 0) {
+                    queue = queue + seq<int> { k };
+                    p[v] = u;
+                    visited[v] = true;
+                }
+            }
+
+        }
+
+        return visited[t];
+    }
+
+    context_everywhere \array(P, V);
+    context Perm(P_seq, write);
+    context |P_seq| == V;
+    context (\forall* int k; 0 <= k && k < V ; Perm(P[k], write));
+    ensures (\forall int i; 0 <= i && i < V; P[i] == 0);
+    ensures (\forall int i; 0 <= i && i < V; P_seq[i] == 0);
+    void initializeWithZeros(int[V] P, int V){
+        par(int i=0..V)
+            context  Perm(P[i],write);
+            ensures  P[i] == 0;
+        {
+            P[i] = 0;
+        }
+
+        initializeSeqWithZeros(P_seq, V); // ghost
+    }
 
     context_everywhere \matrix(source, V, V);
     context  (\forall* int i1; 0 <= i1 && i1 < V;
-                 (\forall* int j1; 0 <= j1 && j1 < V;
-                   Perm(source[i1][j1],read)));
+                 (\forall* int j1; 0 <= j1 && j1 < V; Perm(source[i1][j1],read)));
     context_everywhere \matrix(target, V, V);
     context  (\forall* int i1; 0 <= i1 && i1 < V;
-                 (\forall* int j1 ; 0 <= j1 && j1 < V;
-                   Perm(target[i1][j1],write)));
-    void copy(int[V][V] source, int[V][V] target, int V) {
+                 (\forall* int j1 ; 0 <= j1 && j1 < V; Perm(target[i1][j1],write)));
+    ensures  (\forall* int i1; 0 <= i1 && i1 < V;
+                 (\forall* int j1 ; 0 <= j1 && j1 < V; target[i1][j1] == source[i1][j1]));
+    void copy(int[][] source, int[][] target, int V) {
         par(int i=0..V,int j=0..V)
             context  Perm(target[i][j],write);
             context  Perm(source[i][j],read);
+            ensures  target[i][j] == source[i][j];
         {
             target[i][j] = source[i][j];
         }
+    }
+
+
+    context_everywhere \array(visited, V);
+    context_everywhere 0 <= s && s < V;
+    context (\forall* int k; 0 <= k && k < V; Perm(visited[k], write));
+    ensures (\forall* int k; 0 <= k && k < V && k != s; visited[k] ==  false);
+    ensures visited[s] == true;
+    void initializeVisited(boolean[] visited, int s, int  V){
+        par(int i=0..V)
+            context  Perm(visited[i],write);
+            ensures  visited[i] == false;
+        {
+            visited[i] = false;
+        }
+        visited[s] = true;
     }
 }

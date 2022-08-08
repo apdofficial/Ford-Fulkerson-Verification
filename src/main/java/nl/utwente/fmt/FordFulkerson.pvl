@@ -2,28 +2,37 @@ class FordFulkerson {
 
     requires \array(p, V);
     requires (\forall* int i1 ; 0 <= i1 && i1 < V; Perm(p[i1], read));
-    pure boolean valid_graph_vertices(int[V] p, int V) = (\forall int i; 0 <= i && i < p.length; 0 <= p[i] && p[i] < V);
+    pure boolean valid_graph_vertices(int[V] p, int V) = 
+        (\forall int i; 0 <= i && i < p.length; 0 <= p[i] && p[i] < V);
     
-    pure boolean valid_graph_vertices(seq<int> p, int V) = (\forall int i; 0 <= i && i < |p|; 0 <= p[i] && p[i] < V);
+    pure boolean valid_graph_vertices(seq<int> p, int V) = 
+        (\forall int i; 0 <= i && i < |p|; 0 <= p[i] && p[i] < V);
 
-    pure boolean FlowNetwork(int[V][V] G, int V, int s, int t) = V > 0 && s == 0 && s != t;
+    pure boolean is_bounded(int x, int N) = 0 <= x && x < N;
 
-    pure boolean ResidualNetwork(int[V][V] G, int V) = false;
+    pure boolean valid_path(seq<int> P, int V) = 
+        (\forall int i; 0 <= i && i < |P|; 0 <= P[i] && P[i] < V);
 
-    pure boolean ExPath(int[V][V] G, int V, int s, int t) = false;
+    pure boolean FlowNetwork(seq<seq<int>> G, int V, int s, int t) = 
+        |G| == V && (\forall seq<int> e; e in G; |e| == V);
 
-    pure boolean lemma_flow_conservation(int[V][V] G, int V, int s, int t) = false;
+    requires FlowNetwork(G, V, s, t);
+    pure boolean AugPath(seq<seq<int>> G, int V, int s, int t, seq<int> P) =
+        0 <= s && s < V && 0 <= t && t < V &&
+        0 < |P| && P[0] == s && P[|P| - 1] == t &&
+        (\forall int j; 0 <= j && j < |P|; 0 <= P[j] && P[j] < V) &&
+        (\forall int j; 0 <= j && j < |P| - 1; G[P[j]][P[j + 1]] > 0);
 
-    pure boolean lemma_capacity_constrain(int[V][V] G, int V, int s, int t) = false;
+    requires FlowNetwork(G, V, s, t);
+    pure boolean ExAugPath(seq<seq<int>> G, int V, int s, int t) = 
+        (\exists seq<int>  P; Path(G, V, s, t, P); |P| <= V);
 
-    pure boolean lemma_skew_symetry(int[V][V] G, int V, int s, int t) = false;
 
-    pure boolean lemma_max_flow_min_cut(int[V][V] G, int V, int s, int t) = false;
+    seq<seq<int>> graph_seq;
+    seq<seq<int>> path_seq;
 
-    pure int flow(int[V][V] G, int V, int s, int t) = 0;
-
-    pure int value(int[V][V] G, int V, int s, int t) = 0;
-
+    context_everywhere Perm(graph_seq, write);
+    context_everywhere Perm(path_seq, write);
     context_everywhere \matrix(G, V, V);
     context_everywhere 0 <= s && s < V && 0 <= t && t < V;
     context_everywhere (\forall* int i1 ; 0 <= i1 && i1 < V ;
@@ -37,10 +46,83 @@ class FordFulkerson {
 
         initializeWithZeros(p, V);
 
-        // return executeEdmondKarp(Gf, s, t, p, V);
+        return executeEdmondKarp(Gf, s, t, p, V);
     }
 
+    context_everywhere \matrix(Gf, V, V);
+    context_everywhere \array(p, V);
+    context_everywhere 0 <= s && s < V && 0 <= t && t < V;
+    context_everywhere (\forall* int i1 ; 0 <= i1 && i1 < V; 
+                        (\forall* int j1 ; 0 <= j1 && j1 < V; 
+                            Perm(Gf[i1][j1], write)));
+    context_everywhere (\forall* int i1 ; 0 <= i1 && i1 < V; Perm(p[i1], write));
+    context_everywhere valid_graph_vertices(p, V);
+    int executeEdmondKarp(int[][] Gf, int s, int t, int[] p, int V){
+        int maxFlow = 0;
+        int u = 0;
 
+        
+        while (hasAugmentingPath(Gf, s, t, p, V)) 
+        {
+            int bottleneckPathFlow = 999999999;
+
+            loop_invariant 0 <= v && v < V;
+            for (int v = t; v != s; v = p[v]) 
+            {
+                u = p[v];
+                bottleneckPathFlow = (bottleneckPathFlow <= Gf[u][v]) ? bottleneckPathFlow : Gf[u][v];
+            }
+
+            loop_invariant 0 <= v && v < V;
+            for (int v = t; v != s; v = p[v]) {
+                u = p[v];
+                Gf[u][v] = Gf[u][v] - bottleneckPathFlow;
+                Gf[v][u] = Gf[v][u] + bottleneckPathFlow;
+            }
+
+            maxFlow = maxFlow + bottleneckPathFlow;
+        }
+        return maxFlow;
+    }
+
+    context_everywhere \matrix(Gf, V, V);
+    context_everywhere \array(p, V);
+    context_everywhere 0 <= s && s < V && 0 <= t && t < V;
+    context_everywhere (\forall* int i1 ; 0 <= i1 && i1 < V; 
+                        (\forall* int j1 ; 0 <= j1 && j1 < V; 
+                            Perm(Gf[i1][j1], write)));
+    context_everywhere (\forall* int i1 ; 0 <= i1 && i1 < V; Perm(p[i1], write));
+    context_everywhere valid_graph_vertices(p, V);
+    boolean hasAugmentingPath(int[][] Gf, int s, int t, int[] p, int V) {
+        boolean[] visited = new boolean[V];
+        initializeVisited(visited, s, V);
+
+        seq<int> queue = seq<int> { s };
+
+        loop_invariant 0 <= s && s < V;
+        loop_invariant valid_graph_vertices(queue, V);
+        loop_invariant (\forall* int i1 ; 0 <= i1 && i1 < V; Perm(visited[i1], write));
+        while (!queue.isEmpty) {
+            int u = queue.head;
+            queue.removeAt(0);
+            int k = 0;
+
+            loop_invariant visited.length == V;
+            loop_invariant 0 <= u && u < V && 0 <= v && v <= V && 0 <= k && k < V;
+            loop_invariant valid_graph_vertices(queue, V);
+            loop_invariant (\forall* int i1 ; 0 <= i1 && i1 < V; Perm(visited[i1], write));
+            for (int v = 0; v < V; v++) {   
+                k = v;
+                if (!visited[v] && Gf[u][k] > 0) {
+                    queue = queue + seq<int> { k };
+                    p[v] = u;
+                    visited[v] = true;
+                }
+            }
+        }
+
+        return visited[t];
+    }
 
     context_everywhere \array(p, V);
     context (\forall* int k; 0 <= k && k < V ; Perm(p[k], write));
@@ -66,10 +148,11 @@ class FordFulkerson {
     ensures  (\forall* int i1; 0 <= i1 && i1 < V;
                  (\forall* int j1 ; 0 <= j1 && j1 < V;
                    target[i1][j1] == source[i1][j1]));
-    void copy(int[V][V] source, int[V][V] target, int V) {
+    void copy(int[][] source, int[][] target, int V) {
         par(int i=0..V,int j=0..V)
             context  Perm(target[i][j],write);
             context  Perm(source[i][j],write);
+            ensures  target[i][j] == source[i][j];
         {
             target[i][j] = source[i][j];
         }

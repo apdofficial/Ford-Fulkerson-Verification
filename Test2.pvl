@@ -1,0 +1,42 @@
+class Ford{
+
+	requires \array(p, V);
+    requires (\forall* int i1 ; 0 <= i1 && i1 < V; Perm(p[i1], read));
+    pure boolean valid_graph_vertices(int[V] p, int V) = 
+        (\forall int i; 0 <= i && i < p.length; 0 <= p[i] && p[i] < V); // only points to vertices that exist
+    
+    pure boolean valid_graph_vertices(seq<int> p, int V) = 
+        (\forall int i; 0 <= i && i < |p|; 0 <= p[i] && p[i] < V); // only points to vertices that exist
+
+    requires n <= |p|;
+    ensures n < 0 ==> |initializeSeqWithZeros(p, n)| == 0;
+    ensures 0 <= n ==> |initializeSeqWithZeros(p, n)| == n;
+    ensures (\forall int i; 0 <= i && i < n; p[i] == 0);
+    pure seq<int> initializeSeqWithZeros(seq<int> p, int n) = 
+        0 < n ? seq<int> { 0 } + initializeSeqWithZeros(p, n - 1) : seq<int> { };
+
+
+    pure boolean SquareIntMatrix(seq<seq<int>> G, int V) = 
+        |G| == V && 
+        (\forall seq<int> e; e in G; |e| == V);
+
+    requires SquareIntMatrix(G, V);
+	requires 0 <= n && n <= V;
+    requires 0 <= v && v <= V; 
+    pure int SumIncomingFlow(seq<seq<int>> G, int n, int v, int V) = 
+        n > 0 ? G[n-1][v>0?v-1:0] + SumIncomingFlow(G, n - 1, v, V) : 0;
+
+    requires SquareIntMatrix(G, V);
+    requires 0 <= n && n <= V;
+    requires 0 <= v && v <= V; 
+    pure int SumOutgoingFlow(seq<seq<int>> G, int n, int v, int V) = 
+        n > 0 ? G[v>0?v-1:0][n-1] + SumOutgoingFlow(G, n - 1, v, V) : 0;
+
+    requires 0 <= s && s <= |G|;
+    requires 0 <= t && t <= |G|;
+    requires SquareIntMatrix(G, V);
+    pure boolean FlowConservation(seq<seq<int>> G, int V, int s, int t) = 
+        SumIncomingFlow(G, V, s, V) <= SumOutgoingFlow(G, V, s, V) && // source is the only vertex allowed to "produce" the flow
+        SumIncomingFlow(G, V, t, V) >= SumOutgoingFlow(G, V, t, V) && // sink is the only vertex allowed to "consume" the flow
+        (\forall int v ; 0 <= v && v < V && v != s && v != t; SumIncomingFlow(G, V, v, V) == SumOutgoingFlow(G, V, v, V)); //for vertices other than source and sink it should be equal
+}
